@@ -24,14 +24,14 @@ use errors::*;
 use util::url_join;
 use Json;
 
-use std::rc::Rc;
 use std::cell::RefCell;
+use std::sync::{Arc, RwLock};
 
 /// Struct used to make calls to the Github API.
 pub struct Github {
     token: String,
-    core: Rc<RefCell<Core>>,
-    client: Rc<Client<HttpsConnector>>,
+    core: Arc<RwLock<Core>>,
+    client: Arc<Client<HttpsConnector>>,
 }
 
 impl Clone for Github {
@@ -79,8 +79,8 @@ impl Github {
             .build(&handle);
         Ok(Self {
             token: token.as_ref().into(),
-            core: Rc::new(RefCell::new(core)),
-            client: Rc::new(client),
+            core: Arc::new(RwLock::new(core)),
+            client: Arc::new(client),
         })
     }
 
@@ -97,7 +97,7 @@ impl Github {
     }
 
     /// Exposes the inner event loop for those who need
-    /// access to it. The reccomended way to safely access
+    /// access to it. The recommended way to safely access
     /// the core would be
     ///
     /// ```text
@@ -111,9 +111,9 @@ impl Github {
     ///
     /// This is how other parts of the API are implemented to avoid causing your
     /// program to crash unexpectedly. While you could borrow without the
-    /// `Result` being handled it's highly reccomended you don't unless you know
+    /// `Result` being handled it's highly recommended you don't unless you know
     /// there is no other mutable reference to it.
-    pub fn get_core(&self) -> &Rc<RefCell<Core>> {
+    pub fn get_core(&self) -> &Arc<RwLock<Core>> {
         &self.core
     }
 
@@ -381,10 +381,11 @@ exec!(CustomQuery);
 impl <'g> Executor<'g> {
 
     pub fn execute(self) -> Result<(Headers, StatusCode, Option<Json>)> {
-        let mut core_ref = self.core
-                            .try_borrow_mut()
-                            .chain_err(|| "Unable to get mutable borrow\
-                                            to the event loop")?;
+        let mut core_ref = if let Ok(core) = self.core.try_write() {
+            core
+        } else {
+            bail!("Unable to get mutable borrow to the event loop");
+        };
         let client = self.client;
         let work = client
                     .request(self.request?.into_inner())
