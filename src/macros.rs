@@ -1,5 +1,5 @@
 /// Automatically generate From impls for types given using a small DSL like
-/// macrot
+/// macro.
 macro_rules! from {
     ($(@$f: ident $( => $t: ident )* $( -> $i: ident = $e: expr )*)*) => (
         $($(
